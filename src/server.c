@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
-#define LISTENQ 1024 /* second argument to listen() */
+#define LISTENQ 1024
 
 int create_socket_and_listen(int port)
 {
