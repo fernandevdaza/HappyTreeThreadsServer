@@ -5,7 +5,7 @@
 
 int main()
 {
-    int server_fd = create_socket_and_listen(8080);
+    int server_fd = create_socket_and_listen(8000);
 
     while (1)
     {
@@ -14,7 +14,7 @@ int main()
             continue;
 
         printf("¡Cliente conectado! (FD: %d)\n", client_fd);
-        // handle_client(client_fd);
+        handle_client(client_fd);
         close(client_fd);
     }
     return 0;
