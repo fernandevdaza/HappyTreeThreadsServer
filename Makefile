@@ -1,22 +1,33 @@
-# Nombre del ejecutable
-TARGET = bin/servidor
+# Nombre del ejecutable final
+TARGET = bin/server
 
-# Compilador y Flags
+# Compilador
 CC = gcc
-# -Wall: Muestra warnings, -pthread: Para hilos, -Iinclude: Buscar headers en carpeta include
-CFLAGS = -Wall -Wextra -pthread -Iinclude 
 
-# Archivos fuente y objetos
-SRCS = $(wildcard src/*.c)
+# Flags (Opciones de compilación)
+# -Iinclude: Se pone una sola vez y aplica para todos los archivos
+CFLAGS = -Wall -Wextra -Iinclude
+
+# Archivos fuente ESPECÍFICOS (Tal como en tu comando)
+SRCS = src/server.c src/http.c src/main.c
+
+# Transformamos la lista de .c (src/...) a .o (obj/...)
 OBJS = $(patsubst src/%.c, obj/%.o, $(SRCS))
 
-# Regla principal (build)
+# --- Reglas ---
+
+# Regla por defecto (la primera que se ejecuta al escribir "make")
+all: $(TARGET)
+
+# Paso de Linkeo: Une todos los objetos (.o) para crear el ejecutable
 $(TARGET): $(OBJS)
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ $^
-	@echo "Compilación exitosa: $(TARGET)"
+	@echo "Construcción exitosa: $(TARGET)"
 
-# Regla para compilar cada .c a .o
+# Paso de Compilación: Crea un .o por cada .c
+# Esto es más eficiente que tu comando manual porque si modificas solo
+# server.c, make no recompilará main.c ni http.c innecesariamente.
 obj/%.o: src/%.c
 	@mkdir -p obj
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -26,6 +37,6 @@ clean:
 	rm -rf bin obj
 	@echo "Limpieza completada"
 
-# Ejecutar
+# Ejecutar el servidor
 run: $(TARGET)
 	./$(TARGET)
