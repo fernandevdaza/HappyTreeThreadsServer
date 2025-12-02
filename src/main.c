@@ -14,8 +14,8 @@ int main()
             continue;
 
         printf("¡Cliente conectado! (FD: %d)\n", client_fd);
-        handle_client(client_fd);
-        close(client_fd); // Cierra inmediatamente (Servidor Eco tonto)
+        // handle_client(client_fd);
+        close(client_fd);
     }
     return 0;
 }
