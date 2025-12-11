@@ -6,7 +6,7 @@ CC = gcc
 
 # Flags (Opciones de compilación)
 # -Iinclude: Se pone una sola vez y aplica para todos los archivos
-CFLAGS = -Wall -Wextra -Iinclude
+CFLAGS = -Wall -Wextra -Iinclude -pthread
 
 # Archivos fuente ESPECÍFICOS (Tal como en tu comando)
 SRCS = src/server.c src/http.c src/main.c src/parser.c
