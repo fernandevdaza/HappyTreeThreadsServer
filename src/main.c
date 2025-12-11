@@ -5,7 +5,10 @@
 
 int main()
 {
+    init_thread_pool();
     int server_fd = create_socket_and_listen(8000);
+
+    printf("Servidor HTTP escuchando en puerto 8000...\n");
 
     while (1)
     {
@@ -13,9 +16,7 @@ int main()
         if (client_fd < 0)
             continue;
 
-        printf("¡Cliente conectado! (FD: %d)\n", client_fd);
-        handle_client(client_fd);
-        close(client_fd);
+        enqueue_client(client_fd);
     }
     return 0;
 }

@@ -1,0 +1,17 @@
+p {
+    color: blue;
+    font-family: Arial, sans-serif;
+}
+
+.highlight {
+    background-color: yellow;
+    padding: 10px;
+    margin-bottom: 20px;
+}
+
+#box1 {
+    border: 2px solid black;
+    width: 200px;
+    height: 100px;
+    text-align: center;
+}

@@ -6,16 +6,58 @@
 #include <sys/socket.h>
 #include "parser.h"
 
-const char *headers =
-    "HTTP/1.1 200 OK\r\n"
-    "Content-Type: text/html; charset=UTF-8\r\n"
-    "\r\n";
+static const char *get_mime_type(const char *path)
+{
+    const char *ext = strrchr(path, '.');
+    if (!ext || ext == path)
+    {
+        return "application/octet-stream";
+    }
+    ext++;
 
-char *default_response =
-    "HTTP/1.0 200 OK\r\n"
-    "Content-Type: text/plain\r\n"
-    "\r\n"
-    "Hola! Soy un servidor HTTP real.\n";
+    if (strcmp(ext, "html") == 0 || strcmp(ext, "htm") == 0)
+    {
+        return "text/html; charset=utf-8";
+    }
+    if (strcmp(ext, "css") == 0)
+    {
+        return "text/css; charset=utf-8";
+    }
+    if (strcmp(ext, "js") == 0)
+    {
+        return "application/javascript";
+    }
+    if (strcmp(ext, "png") == 0)
+    {
+        return "image/png";
+    }
+    if (strcmp(ext, "jpg") == 0 || strcmp(ext, "jpeg") == 0)
+    {
+        return "image/jpeg";
+    }
+    if (strcmp(ext, "gif") == 0)
+    {
+        return "image/gif";
+    }
+    if (strcmp(ext, "ico") == 0)
+    {
+        return "image/x-icon";
+    }
+    if (strcmp(ext, "svg") == 0)
+    {
+        return "image/svg+xml";
+    }
+    if (strcmp(ext, "json") == 0)
+    {
+        return "application/json; charset=utf-8";
+    }
+    if (strcmp(ext, "txt") == 0)
+    {
+        return "text/plain; charset=utf-8";
+    }
+
+    return "application/octet-stream";
+}
 
 char *not_found_response =
     "HTTP/1.0 404 Not Found\r\n"
@@ -35,7 +77,10 @@ void handle_client(int client_fd)
     if (req_bytes > 0)
     {
         request[req_bytes] = '\0';
-        printf("\n--- Request recibido ---\n%s\n------------------------\n", request);
+    }
+    else
+    {
+        return;
     }
 
     char method[10];
@@ -44,7 +89,6 @@ void handle_client(int client_fd)
     parse_http_request(request, method, file_path);
 
     char full_path[512];
-
     snprintf(full_path, sizeof(full_path), "%s%s", base_path, file_path);
 
     printf("Abriendo archivo: %s\n", full_path);
@@ -58,7 +102,20 @@ void handle_client(int client_fd)
         return;
     }
 
-    if (send(client_fd, headers, strlen(headers), 0) == -1)
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    const char *mime = get_mime_type(file_path);
+    char header_buffer[1024];
+    int header_len = snprintf(header_buffer, sizeof(header_buffer),
+                              "HTTP/1.1 200 OK\r\n"
+                              "Content-Length: %ld\r\n"
+                              "Content-Type: %s\r\n"
+                              "\r\n",
+                              file_size, mime);
+
+    if (send(client_fd, header_buffer, header_len, 0) == -1)
     {
         perror("send headers");
         fclose(file);
