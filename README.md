@@ -70,7 +70,7 @@ Cada hilo del pool:
 
 ---
 
-## 🌐 **Soporte de MIME Types**
+## **Soporte de MIME Types**
 
 El archivo `http.c` detecta automáticamente el tipo de archivo según la extensión:
 
@@ -89,7 +89,7 @@ El archivo `http.c` detecta automáticamente el tipo de archivo según la extens
 
 ---
 
-## 📁 **Estructura del Proyecto**
+## **Estructura del Proyecto**
 
 ```text
 .
