@@ -1,14 +1,946 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <meta charset="utf-8" />
+    <title>NoTickets+ | Mock Streaming</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- hls.js for browsers without native HLS -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.14/dist/hls.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink: #e5e7eb;
+            --ink-weak: #94a3b8;
+            --bg: #000;
+            --card: #0b0f17;
+            --accent: #e50914;
+            --ring: #ffffff22;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none
+        }
+
+        img {
+            display: block;
+            max-width: 100%
+        }
+
+        .page {
+            min-height: 100%;
+            display: flex;
+            flex-direction: column
+        }
+
+        /* Top bar */
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, .85), rgba(0, 0, 0, 0))
+        }
+
+        .topbar__in {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 18px
+        }
+
+        .logo {
+            font-weight: 800;
+            letter-spacing: .5px;
+            font-size: 20px;
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px
+        }
+
+        .logo-badge {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            background: var(--accent)
+        }
+
+        .nav {
+            display: flex;
+            gap: 14px;
+            font-size: 14px;
+            color: #e5e7ebaa
+        }
+
+        .nav a {
+            padding: 6px 8px;
+            border-radius: 8px
+        }
+
+        .nav a.active,
+        .nav a:hover {
+            color: #fff;
+            background: #ffffff12
+        }
+
+        .spacer {
+            flex: 1
+        }
+
+        .search {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #ffffff10;
+            border: 1px solid var(--ring);
+            padding: 6px 10px;
+            border-radius: 999px
+        }
+
+        .search input {
+            background: transparent;
+            border: 0;
+            outline: 0;
+            color: #fff;
+            width: 180px;
+            font: inherit
+        }
+
+        .avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: conic-gradient(from 160deg, #64748b, #0ea5e9, #64748b)
+        }
+
+        /* Hero */
+        .hero {
+            position: relative;
+            isolation: isolate;
+            min-height: 58vh;
+            display: grid;
+            place-items: end;
+            overflow: hidden;
+            background:
+                radial-gradient(60% 80% at 70% 10%, rgba(229, 9, 20, .25), transparent 60%),
+                radial-gradient(60% 90% at 10% 0%, rgba(2, 132, 199, .18), transparent 60%),
+                linear-gradient(180deg, #06080d 0%, #03040a 100%);
+        }
+
+        .hero__art {
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background:
+                linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, .75) 100%),
+                url('https://i3.ytimg.com/vi/jKh-DP89FPY/maxresdefault.jpg') center/cover no-repeat;
+            filter: saturate(1.05) contrast(1.05) brightness(.78);
+        }
+
+        .hero__in {
+            width: min(1200px, 92vw);
+            margin: 0 auto;
+            padding: 10vh 0 24px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px
+        }
+
+        .title {
+            font-size: clamp(28px, 4vw, 54px);
+            font-weight: 800;
+            letter-spacing: .2px
+        }
+
+        .meta {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            color: #e5e7ebb0;
+            font-weight: 600
+        }
+
+        .badge {
+            font-size: 12px;
+            border: 1px solid #ffffff30;
+            border-radius: 4px;
+            padding: 2px 6px;
+            background: #ffffff14
+        }
+
+        .hero__cta {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 0;
+            cursor: pointer;
+            font-weight: 700;
+            padding: 10px 16px;
+            border-radius: 10px;
+            transition: transform .12s ease, filter .12s ease
+        }
+
+        .btn:active {
+            transform: translateY(1px)
+        }
+
+        .btn--play {
+            background: #fff;
+            color: #111
+        }
+
+        .btn--info {
+            background: #ffffff16;
+            color: #fff;
+            border: 1px solid var(--ring)
+        }
+
+        .btn svg {
+            width: 18px;
+            height: 18px
+        }
+
+        /* Rows */
+        .rows {
+            width: min(1200px, 92vw);
+            margin: 26px auto 56px;
+            display: grid;
+            gap: 26px
+        }
+
+        .row {
+            position: relative
+        }
+
+        .row h3 {
+            margin: 0 0 10px;
+            font-size: 18px
+        }
+
+        .scroller {
+            display: flex;
+            gap: 10px;
+            overflow: auto;
+            padding: 2px;
+            scroll-behavior: smooth;
+            scrollbar-width: none
+        }
+
+        .scroller::-webkit-scrollbar {
+            display: none
+        }
+
+        .card {
+            position: relative;
+            flex: 0 0 auto;
+            width: 180px;
+            height: 100px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #0b1020, #0f172a);
+            border: 1px solid var(--ring);
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .45)
+        }
+
+        .card__art {
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(180deg, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, .8) 100%),
+                var(--poster, radial-gradient(60% 80% at 50% 30%, #1f2937, #0b1020));
+            background-size: cover;
+            background-position: center;
+            filter: contrast(1.05) saturate(1.1) brightness(.92);
+        }
+
+        .card__label {
+            position: absolute;
+            left: 8px;
+            right: 8px;
+            bottom: 8px;
+            font-size: 12px;
+            font-weight: 700
+        }
+
+        .card__actions {
+            position: absolute;
+            inset: auto 8px 8px 8px;
+            display: flex;
+            gap: 6px;
+            opacity: 0;
+            transform: translateY(6px);
+            transition: .18s ease;
+            pointer-events: none
+        }
+
+        .card:hover .card__actions {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto
+        }
+
+        .chip {
+            font-size: 10px;
+            border: 1px solid #ffffff33;
+            border-radius: 999px;
+            padding: 2px 6px;
+            background: #ffffff18
+        }
+
+        /* Row arrows */
+        .arrow {
+            position: absolute;
+            inset: 0 auto 0 auto;
+            margin: auto 0;
+            height: 40px;
+            width: 40px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            background: #ffffff18;
+            border: 1px solid var(--ring);
+            cursor: pointer;
+            backdrop-filter: blur(2px);
+            opacity: .0;
+            transition: .15s ease
+        }
+
+        .row:hover .arrow {
+            opacity: 1
+        }
+
+        .arrowL {
+            left: -20px
+        }
+
+        .arrowR {
+            right: -20px
+        }
+
+        .arrow svg {
+            width: 18px;
+            height: 18px
+        }
+
+        /* Drawer (info) */
+        .drawer {
+            position: fixed;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: min(450px, 95vw);
+            background: var(--card);
+            border-left: 1px solid var(--ring);
+            transform: translateX(100%);
+            transition: transform .2s ease;
+            z-index: 70
+        }
+
+        .drawer.is-open {
+            transform: none
+        }
+
+        .drawer__in {
+            padding: 16px;
+            display: grid;
+            gap: 10px
+        }
+
+        .drawer header {
+            display: flex;
+            align-items: center;
+            gap: 10px
+        }
+
+        .drawer .close {
+            margin-left: auto;
+            background: #ffffff14;
+            border: 1px solid var(--ring);
+            border-radius: 8px;
+            padding: 6px 8px;
+            cursor: pointer
+        }
+
+        /* Player modal */
+        .modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            z-index: 90
+        }
+
+        .modal.is-open {
+            display: grid;
+            place-items: center
+        }
+
+        .modal__overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, .65);
+            backdrop-filter: blur(4px)
+        }
+
+        .modal__box {
+            position: relative;
+            width: min(1100px, 94vw);
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid var(--ring);
+            background: #000
+        }
+
+        video {
+            display: block;
+            width: 100%;
+            height: auto;
+            background: #000
+        }
+
+        #hud {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            z-index: 2;
+            font: 12px/1.3 ui-monospace, monospace;
+            color: #e2e8f0;
+            background: rgba(0, 0, 0, .6);
+            border: 1px solid rgba(255, 255, 255, .15);
+            border-radius: 8px;
+            padding: 6px 8px;
+            white-space: pre
+        }
+
+        .modal__controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 10px;
+            background: #0b0f17;
+            border-top: 1px solid var(--ring)
+        }
+
+        .modal__controls button {
+            background: #ffffff12;
+            border: 1px solid var(--ring);
+            color: #fff;
+            border-radius: 8px;
+            padding: 8px 10px;
+            cursor: pointer
+        }
+
+        .modal__title {
+            font-weight: 800
+        }
+
+        .modal__right {
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        /* Quality dropdown */
+        .quality {
+            position: relative
+        }
+
+        .quality.hide {
+            display: none
+        }
+
+        .quality__menu {
+            position: absolute;
+            right: 0;
+            bottom: calc(100% + 6px);
+            /* ⬅️ drop UP instead of down */
+            top: auto;
+            min-width: 220px;
+            background: #0b0f17;
+            border: 1px solid var(--ring);
+            border-radius: 10px;
+            padding: 6px;
+            display: none;
+            z-index: -1;
+            /* ⬅️ ensure above everything in modal */
+            box-shadow: 0 12px 28px rgba(0, 0, 0, .45);
+        }
+
+        .quality.is-open .quality__menu {
+            display: block
+        }
+
+        .quality__item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer
+        }
+
+        .quality__item:hover {
+            background: #ffffff10
+        }
+
+        .quality__item.active {
+            outline: 2px solid #ffffff22
+        }
+
+        .muted {
+            color: #9ca3af
+        }
+    </style>
 </head>
 
 <body>
-    <h1>Happy Threads Server</h1>
+    <div class="page">
+        <!-- Topbar -->
+        <div class="topbar">
+            <div class="topbar__in">
+                <div class="logo"><span class="logo-badge"></span>NoTickets+</div>
+                <nav class="nav">
+                    <a href="#" class="active">Home</a><a href="#">Series</a><a href="#">Films</a><a href="#">My
+                        List</a>
+                </nav>
+                <div class="spacer"></div>
+                <div class="search">
+                    <svg viewBox="0 0 24 24" width="16" height="16">
+                        <path fill="currentColor"
+                            d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79L20 21.5 21.5 20l-6-6z" />
+                    </svg>
+                    <input id="q" placeholder="Search titles…" />
+                </div>
+                <div class="avatar" title="Profile"></div>
+            </div>
+        </div>
+
+        <!-- Hero -->
+        <section class="hero">
+            <div class="hero__art" aria-hidden="true"></div>
+            <div class="hero__in">
+                <div class="title">Featured: SUNDOWN</div>
+                <div class="meta"><span class="badge">2025</span><span class="badge">16+</span><span class="badge">2h
+                        10m</span><span class="muted">Comedy • Animated • Performing arts</span></div>
+                <div class="hero__cta">
+                    <button class="btn btn--play" id="heroPlay"><svg viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" fill="currentColor" />
+                        </svg> Play</button>
+                    <button class="btn btn--info" id="heroInfo"><svg viewBox="0 0 24 24">
+                            <path d="M11 17h2v-6h-2v6zm0-8h2V7h-2v2z" fill="currentColor" />
+                        </svg> More Info</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Rows -->
+        <main class="rows" id="rows"></main>
+    </div>
+
+    <!-- Info Drawer -->
+    <aside class="drawer" id="drawer" aria-hidden="true">
+        <div class="drawer__in">
+            <header>
+                <div style="width:52px;height:32px;border-radius:6px;background:#1f2937;border:1px solid var(--ring)"
+                    id="drawerArt"></div>
+                <strong id="drawerTitle">Title</strong>
+                <button class="close" id="drawerClose">Close</button>
+            </header>
+            <div class="muted" id="drawerMeta"></div>
+            <p id="drawerDesc"></p>
+            <div style="display:flex;gap:8px">
+                <button id="drawerPlay">Play</button>
+                <button id="drawerList">+ My List</button>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Player Modal -->
+    <div class="modal" id="modal" aria-hidden="true">
+        <div class="modal__overlay" id="modalOverlay"></div>
+        <div class="modal__box">
+            <div id="hud">—</div>
+            <video id="v" controls autoplay playsinline></video>
+            <div class="modal__controls">
+                <div class="modal__title" id="nowTitle">Playing…</div>
+                <div class="modal__right">
+                    <!-- Quality control (shown only with hls.js) -->
+                    <div class="quality hide" id="quality" aria-expanded="false">
+                        <button id="btnQuality" type="button" aria-haspopup="true" aria-controls="qualityMenu">Quality:
+                            Auto</button>
+                        <div class="quality__menu" id="qualityMenu" role="menu"></div>
+                    </div>
+                    <button id="btnMute">Mute</button>
+                    <button id="btnFS">Full screen</button>
+                    <button id="btnClose">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ---------- Demo Data ----------
+        const catalog = [
+            // { id:'a1', title:'Blade Runners of La Paz', year:2025, rating:'16+', duration:'2h 10m', genres:['Sci-Fi','Neo-Noir','Action'],
+            //   poster:'https://images.unsplash.com/photo-1517816743773-6e0fd518b4a6?q=80&w=1200&auto=format&fit=crop', src:'hls/master.m3u8',
+            //   desc:'Chasing replicants across neon-washed altitudes, a rookie and a veteran uncover a secret in El Alto.' },
+            // { id:'b2', title:'Altiplano Drift', year:2024, rating:'13+', duration:'1h 48m', genres:['Action','Sports'],
+            //   poster:'https://images.unsplash.com/photo-1491553895911-0055eca6402d?q=80&w=1200&auto=format&fit=crop', src:'hls/master.m3u8',
+            //   desc:'Street crews race oxygen-starved circuits above 3,600m—where every turn is a gamble.' },
+            // { id:'c3', title:'Cordillera Docs', year:2023, rating:'7+', duration:'52m', genres:['Documentary'],
+            //   poster:'https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop', src:'hls/master.m3u8',
+            //   desc:'Documenting life along the spine of South America.' },
+            // { id:'d4', title:'Metro Noir', year:2025, rating:'16+', duration:'1h 42m', genres:['Thriller','Mystery'],
+            //   poster:'https://images.unsplash.com/photo-1482192505345-5655af888cc4?q=80&w=1200&auto=format&fit=crop', src:'hls/master.m3u8',
+            //   desc:'A detective follows a ghost through rain-slicked streets.' },
+            // { id:'e5', title:'Laguna Echoes', year:2022, rating:'PG', duration:'1h 34m', genres:['Drama'],
+            //   poster:'https://images.unsplash.com/photo-1455212693476-3d83f9480f66?q=80&w=1200&auto=format&fit=crop', src:'hls/master.m3u8',
+            //   desc:'A quiet town, a returning son, and a lake with a memory.' },
+            {
+                id: 'sundown', title: 'SUNDOWN - Animation Short Film 2020 - GOBELINS', year: 2020, rating: 'N/A', duration: '5m 10s', genres: ['Animation', 'Short Film', 'Comedy'],
+                poster: 'https://img.youtube.com/vi/jKh-DP89FPY/maxresdefault.jpg', src: 'videos/SUNDOWN/hls/master.m3u8',
+                desc: 'A frantic group of performers searches for their missing castmate, Sasha, just minutes before their big show.'
+            },
+            {
+                id: 'doppelkonig', title: 'DOUBLE KING', year: 2017, rating: 'N/A', duration: '9m 47s', genres: ['Animation', 'Short Film', 'Fantasy'],
+                poster: 'https://img.youtube.com/vi/w_MSFkZHNi4/maxresdefault.jpg', src: 'videos/DOUBLEKING/hls/master.m3u8',
+                desc: 'A short animated film by Felix Colgrave about a king\'s quest for more crowns.'
+            },
+            {
+                id: 'l33t', title: 'Elite Musketeers are so Good', year: 2025, rating: 'N/A', duration: '14m 18s', genres: ['Gaming', 'Strategy', 'Clash Royale'],
+                poster: 'https://img.youtube.com/vi/jEUP4XYePco/maxresdefault.jpg', src: 'videos/Elite_Musketeers/hls/master.m3u8',
+                desc: 'A look at the reworked Elite Musketeers in Clash Royale, which now feature more health and a powerful melee attack.'
+            },
+            {
+                id: 'tadce6', title: 'THE AMAZING DIGITAL CIRCUS - Ep 6: They All Get Guns', year: 2025, rating: 'N/A', duration: '33m 54s', genres: ['Animation', 'Web Series', 'Dark Comedy'],
+                poster: 'https://img.youtube.com/vi/mOvhHim78YA/maxresdefault.jpg', src: 'videos/TADC6/hls/master.m3u8',
+                desc: 'Today\'s adventure is a team-based game where everyone gets guns, leading to convoluted trust exercises and chaos.'
+            },
+            {
+                id: 'gio25', title: 'Google I/O \'25 Keynote', year: 2025, rating: 'N/A', duration: '1h 56m 36s', genres: ['Tech', 'Keynote', 'Google'],
+                poster: 'https://img.youtube.com/vi/o8NiE3XMPrM/maxresdefault.jpg', src: 'videos/IO25U10/hls/master.m3u8',
+                desc: 'Welcome to Google IO \'25, showcasing rapid progress in AI with Gemini 2.5 Pro, Project Astra, and new hardware.'
+            },
+            {
+                id: 'htrailer', title: 'Hades - Official Animated Trailer', year: 2020, rating: 'N/A', duration: '1m 33s', genres: ['Trailer', 'Gaming', 'Animation'],
+                poster: 'https://img.youtube.com/vi/91t0ha9x0AE/maxresdefault.jpg', src: 'videos/HadesTrailer/hls/master.m3u8',
+                desc: 'The official animated trailer for the award-winning roguelike game Hades.'
+            },
+            {
+                id: 'chara_remake', title: 'Stronger than You - Chara response Remake (Undertale Animation Parody)', year: 2025, rating: 'N/A', duration: '2m 58s', genres: ['Animation', 'Gaming', 'Music', 'Parody'],
+                poster: 'https://img.youtube.com/vi/qg9IMJKnIAA/maxresdefault.jpg', src: 'videos/StrongerThanYou/hls/master.m3u8',
+                desc: 'An animated music video parody/remake from the game Undertale, focusing on the character Chara.'
+            },
+            {
+                id: 'upbfullstack', title: 'Desarrollo Full-Stack - UPB', year: 2025, rating: 'N/A', duration: '2m 02s', genres: ['Trailer', 'Tech'],
+                poster: 'image.jpeg', src: 'videos/UPBFullStack/hls/master.m3u8',
+                desc: 'A video shows the UPB\'s Full-stack development pathway.'
+            },
+            {
+                id: 'upbcibersec', title: 'Ciberseguridad - UPB', year: 2025, rating: 'N/A', duration: '2m 32s', genres: ['Trailer', 'Tech'],
+                poster: 'image.jpeg', src: 'hls/ciberseguridad/index.m3u8',
+                desc: 'An edited video shows Miguel playing on the UPB\'s cibersecurity website'
+            }
+        ];
+        const rowsSpec = [
+            { key: 'featured', name: 'Featured Today', picks: ['sundown', 'l33t', 'gio25'] },
+            { key: 'upb', name: "UPB", picks: ['upbcibersec', 'upbfullstack'] },
+            { key: 'animation_shorts', name: 'Animated Short Films', picks: ['doppelkonig', 'sundown', 'chara_remake', 'tadce6', 'htrailer'] },
+            { key: 'gaming_focus', name: 'Gaming & Strategy', picks: ['l33t', 'htrailer'] },
+            { key: 'music_parodies', name: 'Music & Parodies', picks: ['chara_remake'] },
+            { key: 'tech_keynotes', name: 'Tech & Keynotes', picks: ['gio25', 'l33t'] },
+            { key: 'dark_comedy', name: 'Web Series & Dark Comedy', picks: ['tadce6', 'doppelkonig'] }
+        ];
+
+        // ---------- Build rows ----------
+        const rowsRoot = document.getElementById('rows');
+        const byId = Object.fromEntries(catalog.map(x => [x.id, x]));
+
+        function cardHTML(item) {
+            const poster = item.poster ? `url('${item.poster}')` : 'radial-gradient(60% 80% at 50% 30%, #1f2937, #0b1020)';
+            return `
+      <article class="card" data-id="${item.id}" style="--poster:${poster};">
+        <div class="card__art"></div>
+        <div class="card__label">${item.title}</div>
+        <div class="card__actions">
+          <button class="btn btn--play" data-action="play"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>Play</button>
+          <button class="btn btn--info" data-action="info"><svg viewBox="0 0 24 24"><path d="M11 17h2v-6h-2v2z" fill="currentColor"/></svg>Info</button>
+          <span class="chip">${item.rating}</span>
+        </div>
+      </article>`;
+        }
+        function rowHTML(spec) {
+            const items = spec.picks.map(id => cardHTML(byId[id])).join('');
+            return `
+      <section class="row" data-row="${spec.key}">
+        <h3>${spec.name}</h3>
+        <div class="scroller">${items}</div>
+        <button class="arrow arrowL" aria-label="scroll left">${chevL()}</button>
+        <button class="arrow arrowR" aria-label="scroll right">${chevR()}</button>
+      </section>`;
+        }
+        rowsRoot.innerHTML = rowsSpec.map(rowHTML).join('');
+
+        // Row arrows
+        document.querySelectorAll('.row').forEach(row => {
+            const scroller = row.querySelector('.scroller');
+            row.querySelector('.arrowL').addEventListener('click', () => scroller.scrollBy({ left: -600, behavior: 'smooth' }));
+            row.querySelector('.arrowR').addEventListener('click', () => scroller.scrollBy({ left: 600, behavior: 'smooth' }));
+        });
+
+        // Search
+        const q = document.getElementById('q');
+        q.addEventListener('input', () => {
+            const term = q.value.trim().toLowerCase();
+            document.querySelectorAll('.card').forEach(card => {
+                const item = byId[card.dataset.id];
+                card.style.display = !term || item.title.toLowerCase().includes(term) ? '' : 'none';
+            });
+        });
+
+        // Hero buttons
+        document.getElementById('heroPlay').addEventListener('click', () => playItem(byId['a1']));
+        document.getElementById('heroInfo').addEventListener('click', () => openDrawer(byId['a1']));
+
+        // Card actions
+        rowsRoot.addEventListener('click', (e) => {
+            const btn = e.target.closest('button'); if (!btn) return;
+            const card = e.target.closest('.card'); if (!card) return;
+            const item = byId[card.dataset.id];
+            const act = btn.dataset.action;
+            if (act === 'play') playItem(item);
+            if (act === 'info') openDrawer(item);
+        });
+
+        // ---------- Drawer ----------
+        const drawer = document.getElementById('drawer');
+        const drawerArt = document.getElementById('drawerArt');
+        const drawerTitle = document.getElementById('drawerTitle');
+        const drawerMeta = document.getElementById('drawerMeta');
+        const drawerDesc = document.getElementById('drawerDesc');
+        const drawerPlay = document.getElementById('drawerPlay');
+        const drawerList = document.getElementById('drawerList');
+        document.getElementById('drawerClose').addEventListener('click', () => drawer.classList.remove('is-open'));
+
+        function openDrawer(item) {
+            drawerArt.style.backgroundImage = `url('${item.poster || ''}')`;
+            drawerTitle.textContent = item.title;
+            drawerMeta.textContent = `${item.year} • ${item.rating} • ${item.duration} • ${item.genres.join(' • ')}`;
+            drawerDesc.textContent = item.desc || '';
+            drawerPlay.onclick = () => playItem(item);
+            drawerList.onclick = () => toggleMyList(item);
+            drawer.classList.add('is-open');
+        }
+
+        // ---------- My List (demo) ----------
+        const myListKey = 'nt_mock_mylist';
+        function readList() { try { return new Set(JSON.parse(localStorage.getItem(myListKey) || '[]')) } catch { return new Set } }
+        function writeList(set) { localStorage.setItem(myListKey, JSON.stringify([...set])); }
+        function toggleMyList(item) {
+            const set = readList();
+            set.has(item.id) ? set.delete(item.id) : set.add(item.id);
+            writeList(set);
+            alert(set.has(item.id) ? 'Added to My List' : 'Removed from My List');
+        }
+
+        // ---------- Player & Quality ----------
+        const modal = document.getElementById('modal');
+        const modalOverlay = document.getElementById('modalOverlay');
+        const nowTitle = document.getElementById('nowTitle');
+        const video = document.getElementById('v');
+        const hud = document.getElementById('hud');
+        const btnClose = document.getElementById('btnClose');
+        const btnFS = document.getElementById('btnFS');
+        const btnMute = document.getElementById('btnMute');
+
+        const qualityBlock = document.getElementById('quality');
+        const btnQuality = document.getElementById('btnQuality');
+        const qualityMenu = document.getElementById('qualityMenu');
+
+        let hls = null;           // active hls.js instance (if used)
+        let levelsCache = [];     // manifest levels for menu rebuilds
+
+        function setHUD(txt) { hud.textContent = txt; }
+        function kbps(bps) { return Math.round((bps || 0) / 1000); }
+
+        function setQualityUIAvailable(yes) {
+            qualityBlock.classList.toggle('hide', !yes);
+            qualityBlock.classList.remove('is-open');
+            qualityBlock.setAttribute('aria-expanded', 'false');
+        }
+        function setQualityLabel(t) { btnQuality.textContent = `Quality: ${t}`; }
+
+        function buildQualityMenu(levels) {
+            if (!Array.isArray(levels) || levels.length === 0) { qualityMenu.innerHTML = ''; return; }
+            const sorted = levels.map((L, i) => ({ i, h: L.height || 0, w: L.width || 0, br: L.bitrate || 0 }))
+                .sort((a, b) => b.h - a.h || b.br - a.br);
+            const isAuto = (hls?.currentLevel ?? -1) === -1;
+            let html = `
+      <div class="quality__item ${isAuto ? 'active' : ''}" data-level="-1" role="menuitem">
+        <span>Auto</span><span class="muted">Adaptive</span>
+      </div>`;
+            html += sorted.map(({ i, h, w, br }) => `
+      <div class="quality__item ${(hls?.currentLevel === i) ? 'active' : ''}" data-level="${i}" role="menuitem">
+        <span>${h || '?'}p</span><span class="muted">${w}×${h} • ~${kbps(br)} kbps</span>
+      </div>`).join('');
+            qualityMenu.innerHTML = html;
+        }
+        function closeQualityMenu() {
+            qualityBlock.classList.remove('is-open');
+            qualityBlock.setAttribute('aria-expanded', 'false');
+        }
+        function toggleQualityMenu() {
+            if (!qualityMenu.innerHTML.trim() && levelsCache.length) { buildQualityMenu(levelsCache); }
+            if (!qualityMenu.innerHTML.trim()) return; // still nothing to show
+            const open = !qualityBlock.classList.contains('is-open');
+            qualityBlock.classList.toggle('is-open', open);
+            qualityBlock.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        btnQuality.addEventListener('click', (e) => { e.stopPropagation(); toggleQualityMenu(); });
+        document.addEventListener('click', (e) => { if (!qualityBlock.contains(e.target)) closeQualityMenu(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeQualityMenu(); });
+
+        qualityMenu.addEventListener('click', (e) => {
+            const item = e.target.closest('.quality__item'); if (!item) return;
+            const lvl = Number(item.dataset.level);
+            if (!hls) return;
+            hls.currentLevel = lvl;                         // -1 auto, >=0 fixed
+            qualityMenu.querySelectorAll('.quality__item').forEach(n => n.classList.remove('active'));
+            item.classList.add('active');
+            if (lvl === -1) setQualityLabel('Auto');
+            else {
+                const L = levelsCache?.[lvl];
+                setQualityLabel(L?.height ? `${L.height}p` : `Level ${lvl}`);
+            }
+            closeQualityMenu();
+        });
+
+        function openModal() { modal.classList.add('is-open'); }
+        function closeModal() {
+            modal.classList.remove('is-open');
+            try { hls?.destroy(); } catch { }
+            hls = null;
+            video.removeAttribute('src'); video.load?.();
+            setHUD('—');
+            closeQualityMenu();
+        }
+        modalOverlay.addEventListener('click', closeModal);
+        btnClose.addEventListener('click', closeModal);
+
+        // Keyboard shortcuts while modal open
+        document.addEventListener('keydown', (e) => {
+            if (!modal.classList.contains('is-open')) return;
+            if (e.key === ' ') { e.preventDefault(); (video.paused ? video.play() : video.pause()); }
+            if (e.key.toLowerCase() === 'm') { video.muted = !video.muted; }
+            if (e.key.toLowerCase() === 'f') { fs(); }
+            if (e.key === 'ArrowRight') { video.currentTime += 5; }
+            if (e.key === 'ArrowLeft') { video.currentTime -= 5; }
+            if (e.key === 'Escape') { closeModal(); }
+        });
+        function fs() {
+            const el = modal.querySelector('.modal__box');
+            if (document.fullscreenElement) document.exitFullscreen();
+            else el.requestFullscreen?.();
+        }
+        btnFS.addEventListener('click', fs);
+        btnMute.addEventListener('click', () => video.muted = !video.muted);
+
+        function playItem(item) {
+            nowTitle.textContent = item.title;
+            openModal();
+
+            // Hide quality until we know we're using hls.js
+            setQualityUIAvailable(false);
+
+            const src = item.src || 'hls/master.m3u8';
+
+            // ---- Force hls.js (recommended for Firefox and for manual quality) ----
+            const PREFER_HLSJS = true;
+            const canUseHlsJs = !!window.Hls && Hls.isSupported();
+
+            if (PREFER_HLSJS && canUseHlsJs) {
+                try { hls?.destroy(); } catch { }
+                hls = new Hls({ enableWorker: true });
+                window.hls = hls; // make inspectable in DevTools
+
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(src));
+
+                hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
+                    const levels = data.levels || hls.levels || [];
+                    levelsCache = levels;
+                    const list = levels.map((L, i) => `${i}:${L.width}x${L.height}@${Math.round((L.bitrate || 0) / 1000)}k`).join('  ');
+                    setHUD(`Levels: ${levels.length}\n${list}`);
+                    buildQualityMenu(levels);
+                    setQualityUIAvailable(levels.length > 0);
+                    setQualityLabel('Auto');
+                    video.play().catch(() => { });
+                });
+
+                hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => {
+                    const L = hls.levels?.[d.level];
+                    if (L) setHUD(`Level: ${d.level}\n${L.width}x${L.height} @ ~${Math.round((L.bitrate || 0) / 1000)} kbps`);
+                    if ((hls.currentLevel ?? -1) === -1) setQualityLabel('Auto');
+                    else if (L) setQualityLabel(`${L.height || '?'}p`);
+                });
+
+                hls.on(Hls.Events.FRAG_CHANGED, (_, data) => {
+                    const idx = data.frag?.level, sn = data.frag?.sn;
+                    const L = hls.levels?.[idx];
+                    if (L) setHUD(`Level: ${idx}\n${L.width}x${L.height} @ ~${Math.round((L.bitrate || 0) / 1000)} kbps\nseg #${sn}`);
+                });
+
+                hls.on(Hls.Events.ERROR, (_, d) => { if (d?.fatal) console.error('HLS FATAL', d); });
+                return;
+            }
+
+            // ---- Fallback: native HLS (Safari/iOS) ----
+            if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = src;
+                const onMeta = () => setHUD(`Native HLS\n${video.videoWidth}x${video.videoHeight}`);
+                video.addEventListener('loadedmetadata', onMeta, { once: true });
+                video.addEventListener('resize', onMeta);
+                video.play().catch(() => { });
+                return;
+            }
+
+            // Last resort
+            setHUD('HLS not supported, and hls.js unavailable');
+        }
+
+
+        // ---------- Icons ----------
+        function chevL() { return `<svg viewBox="0 0 24 24"><path fill="currentColor" d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>` }
+        function chevR() { return `<svg viewBox="0 0 24 24"><path fill="currentColor" d="m8.59 16.59 1.41 1.41L16 12 10 6 8.59 7.41 13.17 12z"/></svg>` }
+    </script>
 </body>
 
 </html>
