@@ -1,0 +1,22 @@
+[project]
+name = "streaming"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Fernando Daza",email = "fernando.daza.18@outlook.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "playwright (>=1.57.0,<2.0.0)",
+    "chromium (>=0.0.0,<0.0.1)",
+    "matplotlib (>=3.10.8,<4.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = false

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e  # salir si hay error
+set -e
 
 if [ "$#" -lt 4 ]; then
     echo "Uso: $0 <host> <port> <threads> <requests_por_thread> [path]"

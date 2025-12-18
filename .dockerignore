@@ -1,0 +1,12 @@
+.git
+.gitignore
+.idea
+.vscode
+
+bin/
+obj/
+
+test/
+
+angry_threads_test.sh
+process_video.sh

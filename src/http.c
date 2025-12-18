@@ -4,7 +4,85 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <errno.h>
 #include "parser.h"
+#include "logger.h"
+#include "stats.h"
+
+static int send_all(int fd, const void *buf, size_t len)
+{
+    const char *p = (const char *)buf;
+    while (len > 0)
+    {
+        ssize_t n = send(fd, p, len, MSG_NOSIGNAL);
+        if (n <= 0)
+            return -1;
+        p += (size_t)n;
+        len -= (size_t)n;
+    }
+    return 0;
+}
+
+static int parse_range(const char *request, long file_size, long *out_start, long *out_end)
+{
+    const char *p = strstr(request, "Range: bytes=");
+    if (!p)
+    {
+        return 0;
+    }
+
+    p += (long)strlen("Range: bytes=");
+
+    long start = 0;
+    long end = file_size - 1;
+
+    if (*p == '-')
+    {
+        long suffix = atol(p + 1);
+        if (suffix <= 0)
+        {
+            return -1;
+        }
+        if (suffix > file_size)
+        {
+            suffix = file_size;
+        }
+        start = file_size - suffix;
+        end = file_size - 1;
+    }
+    else
+    {
+        start = atol(p);
+        const char *dash = strchr(p, '-');
+        if (!dash)
+        {
+            return -1;
+        }
+
+        if (*(dash + 1) != '\r' && *(dash + 1) != '\n' && *(dash + 1) != '\0')
+        {
+            end = atol(dash + 1);
+        }
+    }
+
+    if (start < 0 || start >= file_size)
+    {
+        return -1;
+    }
+    if (end < start)
+    {
+        return -1;
+    }
+    if (end >= file_size)
+    {
+        end = file_size - 1;
+    }
+
+    *out_start = start;
+    *out_end = end;
+    return 1;
+}
 
 static const char *get_mime_type(const char *path)
 {
@@ -55,6 +133,22 @@ static const char *get_mime_type(const char *path)
     {
         return "text/plain; charset=utf-8";
     }
+    if (strcmp(ext, "m3u8") == 0)
+    {
+        return "application/vnd.apple.mpegurl";
+    }
+    if (strcmp(ext, "ts") == 0)
+    {
+        return "video/mp2t";
+    }
+    if (strcmp(ext, "m4s") == 0)
+    {
+        return "video/iso.segment";
+    }
+    if (strcmp(ext, "mp4") == 0)
+    {
+        return "video/mp4";
+    }
 
     return "application/octet-stream";
 }
@@ -67,6 +161,10 @@ char *not_found_response =
 
 void handle_client(int client_fd)
 {
+    struct timeval start_time, first_response_time, end_time;
+    gettimeofday(&start_time, NULL);
+
+    increment_requests();
     char request[1024] = {0};
     char base_path[255] = "./www";
     char buffer[4096];
@@ -88,10 +186,34 @@ void handle_client(int client_fd)
 
     parse_http_request(request, method, file_path);
 
+    if (file_path[0] != '/')
+    {
+        char tmp[255];
+        tmp[0] = '/';
+        strncpy(tmp + 1, file_path, sizeof(tmp) - 2);
+        tmp[sizeof(tmp) - 1] = '\0';
+        strncpy(file_path, tmp, sizeof(file_path) - 1);
+        file_path[sizeof(file_path) - 1] = '\0';
+    }
+
+    if (strstr(file_path, "..") != NULL)
+    {
+        write(client_fd, not_found_response, strlen(not_found_response));
+        return;
+    }
+
+    if (strcmp(file_path, "/") == 0)
+    {
+        strcpy(file_path, "/index.html");
+    }
+
     char full_path[512];
     snprintf(full_path, sizeof(full_path), "%s%s", base_path, file_path);
 
-    printf("Abriendo archivo: %s\n", full_path);
+    if (!is_logging_enabled())
+    {
+        printf("Abriendo archivo: %s\n", full_path);
+    }
 
     file = fopen(full_path, read_mode);
 
@@ -99,6 +221,7 @@ void handle_client(int client_fd)
     {
         perror("Error while opening file");
         write(client_fd, not_found_response, strlen(not_found_response));
+        increment_failed();
         return;
     }
 
@@ -107,36 +230,115 @@ void handle_client(int client_fd)
     fseek(file, 0, SEEK_SET);
 
     const char *mime = get_mime_type(file_path);
-    char header_buffer[1024];
-    int header_len = snprintf(header_buffer, sizeof(header_buffer),
-                              "HTTP/1.1 200 OK\r\n"
-                              "Content-Length: %ld\r\n"
-                              "Content-Type: %s\r\n"
-                              "\r\n",
-                              file_size, mime);
 
-    if (send(client_fd, header_buffer, header_len, 0) == -1)
+    long start = 0, end = file_size - 1;
+    int has_range = parse_range(request, file_size, &start, &end);
+    if (has_range < 0)
     {
-        perror("send headers");
+        const char *resp =
+            "HTTP/1.1 416 Range Not Satisfiable\r\n"
+            "Content-Length: 0\r\n"
+            "Connection: close\r\n"
+            "\r\n";
+        send_all(client_fd, resp, strlen(resp));
         fclose(file);
         return;
     }
 
-    size_t bytes_read;
-    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
+    long content_length = (has_range == 1) ? (end - start + 1) : file_size;
+
+    char header_buffer[1024];
+    int header_len;
+
+    if (has_range == 1)
     {
-        ssize_t bytes_sent = send(client_fd, buffer, bytes_read, 0);
-        if (bytes_sent == -1)
+        header_len = snprintf(header_buffer, sizeof(header_buffer),
+                              "HTTP/1.1 206 Partial Content\r\n"
+                              "Content-Type: %s\r\n"
+                              "Accept-Ranges: bytes\r\n"
+                              "Content-Range: bytes %ld-%ld/%ld\r\n"
+                              "Content-Length: %ld\r\n"
+                              "Connection: close\r\n"
+                              "\r\n",
+                              mime, start, end, file_size, content_length);
+
+        fseek(file, start, SEEK_SET);
+    }
+    else
+    {
+        header_len = snprintf(header_buffer, sizeof(header_buffer),
+                              "HTTP/1.1 200 OK\r\n"
+                              "Content-Length: %ld\r\n"
+                              "Content-Type: %s\r\n"
+                              "Accept-Ranges: bytes\r\n"
+                              "Connection: close\r\n"
+                              "\r\n",
+                              file_size, mime);
+    }
+
+    if (send_all(client_fd, header_buffer, (size_t)header_len) == -1)
+    {
+        perror("send headers");
+        fclose(file);
+        increment_failed();
+        return;
+    }
+
+    gettimeofday(&first_response_time, NULL);
+    unsigned long long response_time_us =
+        (first_response_time.tv_sec - start_time.tv_sec) * 1000000ULL +
+        (first_response_time.tv_usec - start_time.tv_usec);
+    add_response_time(response_time_us);
+
+    int request_failed = 0;
+    long remaining = content_length;
+    while (remaining > 0)
+    {
+        size_t to_read = (remaining < (long)sizeof(buffer)) ? (size_t)remaining : sizeof(buffer);
+        size_t bytes_read = fread(buffer, 1, to_read, file);
+        if (bytes_read == 0)
         {
-            perror("Error while send file chunk");
             break;
         }
+
+        if (send_all(client_fd, buffer, bytes_read) == -1)
+        {
+            if (errno == EPIPE || errno == ECONNRESET)
+            {
+                increment_aborted();
+            }
+            else
+            {
+                perror("send file");
+                increment_failed();
+            }
+            request_failed = 1;
+            break;
+        }
+
+        add_bytes_sent(bytes_read);
+        remaining -= (long)bytes_read;
     }
 
     if (ferror(file))
     {
         perror("Error while reading file");
+        if (!request_failed)
+        {
+            increment_failed();
+            request_failed = 1;
+        }
+    }
+    else if (!request_failed)
+    {
+        increment_successful();
     }
 
     fclose(file);
+
+    gettimeofday(&end_time, NULL);
+    unsigned long long turnaround_time_us =
+        (end_time.tv_sec - start_time.tv_sec) * 1000000ULL +
+        (end_time.tv_usec - start_time.tv_usec);
+    add_turnaround_time(turnaround_time_us);
 }
