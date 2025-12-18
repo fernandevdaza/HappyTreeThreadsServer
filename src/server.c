@@ -12,7 +12,6 @@
 #include "http.h"
 #include "logger.h"
 
-#define WORKER_THREAD_COUNT 4
 #define CLIENT_QUEUE_CAPACITY 64
 
 typedef struct
@@ -28,8 +27,9 @@ typedef struct
 
 static client_queue_t g_client_queue;
 static client_queue_t g_client_queue;
-static pthread_t g_worker_threads[WORKER_THREAD_COUNT];
-static int g_worker_ids[WORKER_THREAD_COUNT];
+static pthread_t *g_worker_threads = NULL;
+static int *g_worker_ids = NULL;
+static int g_worker_count = 0;
 
 static void client_queue_init(client_queue_t *q)
 {
@@ -58,6 +58,7 @@ static void client_queue_push(client_queue_t *q, int client_fd)
     pthread_mutex_lock(&q->mutex);
     while (q->count == CLIENT_QUEUE_CAPACITY)
     {
+        log_event(ID_PRODUCER, -1, "Sleeping", "Waiting to be awake");
         pthread_cond_wait(&q->not_full, &q->mutex);
     }
     q->client_fds[q->tail] = client_fd;
@@ -65,15 +66,16 @@ static void client_queue_push(client_queue_t *q, int client_fd)
     q->count++;
     pthread_cond_signal(&q->not_empty);
     pthread_mutex_unlock(&q->mutex);
-
 }
 
-static int client_queue_pop(client_queue_t *q)
+static int client_queue_pop(client_queue_t *q, int worker_id)
 {
+
     pthread_mutex_lock(&q->mutex);
     while (q->count == 0)
     {
         pthread_cond_wait(&q->not_empty, &q->mutex);
+        log_event(worker_id, -1, "Ready", "Waiting to execute");
     }
     int client_fd = q->client_fds[q->head];
     q->head = (q->head + 1) % CLIENT_QUEUE_CAPACITY;
@@ -88,22 +90,33 @@ static void *worker_thread_main(void *arg)
     int worker_id = *((int *)arg);
     while (1)
     {
-        log_event(worker_id, -1, "Blocked", "Waiting for client");
-        int client_fd = client_queue_pop(&g_client_queue);
-        
+        log_event(worker_id, -1, "Sleeping", "Waiting for client");
+        int client_fd = client_queue_pop(&g_client_queue, worker_id);
+
         log_event(worker_id, client_fd, "Running", "Handling request");
         handle_client(client_fd);
-        
+
         log_event(worker_id, client_fd, "Done", "Finished request");
         close(client_fd);
     }
     return NULL;
 }
 
-void init_thread_pool(void)
+void init_thread_pool(int worker_count)
 {
+    g_worker_count = worker_count;
     client_queue_init(&g_client_queue);
-    for (int i = 0; i < WORKER_THREAD_COUNT; ++i)
+
+    g_worker_threads = malloc(worker_count * sizeof(pthread_t));
+    g_worker_ids = malloc(worker_count * sizeof(int));
+
+    if (!g_worker_threads || !g_worker_ids)
+    {
+        perror("Failed to allocate thread pool memory");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < worker_count; ++i)
     {
         g_worker_ids[i] = i;
         if (pthread_create(&g_worker_threads[i], NULL, worker_thread_main, &g_worker_ids[i]) != 0)
@@ -112,8 +125,9 @@ void init_thread_pool(void)
             exit(EXIT_FAILURE);
         }
     }
-    if (!is_logging_enabled()) {
-        printf("Thread pool initialized with %d workers\n", WORKER_THREAD_COUNT);
+    if (!is_logging_enabled())
+    {
+        printf("Thread pool initialized with %d workers\n", worker_count);
     }
 }
 
@@ -159,7 +173,8 @@ int create_socket_and_listen(int port)
         exit(EXIT_FAILURE);
     }
 
-    if (!is_logging_enabled()) {
+    if (!is_logging_enabled())
+    {
         printf("Server listening on port %d\n", port);
     }
     return server_fd;

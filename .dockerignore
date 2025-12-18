@@ -1,16 +1,12 @@
-# Version Control
 .git
 .gitignore
 .idea
 .vscode
 
-# Build Artifacts
 bin/
 obj/
 
-# Test Directory (Excluded as requested)
 test/
 
-# Other
 angry_threads_test.sh
 process_video.sh

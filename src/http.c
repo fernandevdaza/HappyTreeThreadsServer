@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <errno.h>
 #include "parser.h"
 #include "logger.h"
 #include "stats.h"
@@ -12,9 +13,11 @@
 static int send_all(int fd, const void *buf, size_t len)
 {
     const char *p = (const char *)buf;
-    while (len > 0) {
+    while (len > 0)
+    {
         ssize_t n = send(fd, p, len, MSG_NOSIGNAL);
-        if (n <= 0) return -1;
+        if (n <= 0)
+            return -1;
         p += (size_t)n;
         len -= (size_t)n;
     }
@@ -160,7 +163,7 @@ void handle_client(int client_fd)
 {
     struct timeval start_time, first_response_time, end_time;
     gettimeofday(&start_time, NULL);
-    
+
     increment_requests();
     char request[1024] = {0};
     char base_path[255] = "./www";
@@ -207,7 +210,8 @@ void handle_client(int client_fd)
     char full_path[512];
     snprintf(full_path, sizeof(full_path), "%s%s", base_path, file_path);
 
-    if (!is_logging_enabled()) {
+    if (!is_logging_enabled())
+    {
         printf("Abriendo archivo: %s\n", full_path);
     }
 
@@ -280,13 +284,13 @@ void handle_client(int client_fd)
         return;
     }
 
-    // Record first response time (header sent)
     gettimeofday(&first_response_time, NULL);
-    unsigned long long response_time_us = 
+    unsigned long long response_time_us =
         (first_response_time.tv_sec - start_time.tv_sec) * 1000000ULL +
         (first_response_time.tv_usec - start_time.tv_usec);
     add_response_time(response_time_us);
 
+    int request_failed = 0;
     long remaining = content_length;
     while (remaining > 0)
     {
@@ -299,8 +303,16 @@ void handle_client(int client_fd)
 
         if (send_all(client_fd, buffer, bytes_read) == -1)
         {
-            perror("send file");
-            increment_failed();
+            if (errno == EPIPE || errno == ECONNRESET)
+            {
+                increment_aborted();
+            }
+            else
+            {
+                perror("send file");
+                increment_failed();
+            }
+            request_failed = 1;
             break;
         }
 
@@ -311,16 +323,21 @@ void handle_client(int client_fd)
     if (ferror(file))
     {
         perror("Error while reading file");
-        increment_failed();
-    } else {
+        if (!request_failed)
+        {
+            increment_failed();
+            request_failed = 1;
+        }
+    }
+    else if (!request_failed)
+    {
         increment_successful();
     }
 
     fclose(file);
-    
-    // Record turnaround time (request complete)
+
     gettimeofday(&end_time, NULL);
-    unsigned long long turnaround_time_us = 
+    unsigned long long turnaround_time_us =
         (end_time.tv_sec - start_time.tv_sec) * 1000000ULL +
         (end_time.tv_usec - start_time.tv_usec);
     add_turnaround_time(turnaround_time_us);

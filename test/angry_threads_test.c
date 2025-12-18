@@ -1,12 +1,3 @@
-// stress_test.c
-// Pequeño load tester para el servidor HTTP en C.
-// Uso:
-//   ./stress_test 127.0.0.1 8000 4 1000
-//     host      = 127.0.0.1 (o localhost)
-//     port      = 8000
-//     threads   = 4   (número de hilos cliente)
-//     requests  = 1000 (requests por hilo)
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,6 +50,11 @@ static void *worker_main(void *arg)
             continue;
         }
 
+        struct timeval tv;
+        tv.tv_sec = 5;
+        tv.tv_usec = 0;
+        setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tv, sizeof tv);
+
         if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
         {
             perror("connect");
@@ -86,9 +82,8 @@ static void *worker_main(void *arg)
             }
             if (n == 0)
             {
-                break; // el servidor cerró la conexión
+                break;
             }
-            // No hacemos nada con los datos, solo los consumimos
         }
 
         close(sockfd);
@@ -147,7 +142,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Esperar que terminen todos los hilos
     for (int i = 0; i < thread_count; ++i)
     {
         pthread_join(threads[i], NULL);

@@ -9,7 +9,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "playwright (>=1.57.0,<2.0.0)",
-    "chromium (>=0.0.0,<0.0.1)"
+    "chromium (>=0.0.0,<0.0.1)",
+    "matplotlib (>=3.10.8,<4.0.0)"
 ]
 
 
