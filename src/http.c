@@ -4,8 +4,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include "parser.h"
 #include "logger.h"
+#include "stats.h"
 
 static int send_all(int fd, const void *buf, size_t len)
 {
@@ -156,6 +158,10 @@ char *not_found_response =
 
 void handle_client(int client_fd)
 {
+    struct timeval start_time, first_response_time, end_time;
+    gettimeofday(&start_time, NULL);
+    
+    increment_requests();
     char request[1024] = {0};
     char base_path[255] = "./www";
     char buffer[4096];
@@ -211,6 +217,7 @@ void handle_client(int client_fd)
     {
         perror("Error while opening file");
         write(client_fd, not_found_response, strlen(not_found_response));
+        increment_failed();
         return;
     }
 
@@ -269,8 +276,16 @@ void handle_client(int client_fd)
     {
         perror("send headers");
         fclose(file);
+        increment_failed();
         return;
     }
+
+    // Record first response time (header sent)
+    gettimeofday(&first_response_time, NULL);
+    unsigned long long response_time_us = 
+        (first_response_time.tv_sec - start_time.tv_sec) * 1000000ULL +
+        (first_response_time.tv_usec - start_time.tv_usec);
+    add_response_time(response_time_us);
 
     long remaining = content_length;
     while (remaining > 0)
@@ -285,16 +300,28 @@ void handle_client(int client_fd)
         if (send_all(client_fd, buffer, bytes_read) == -1)
         {
             perror("send file");
+            increment_failed();
             break;
         }
 
+        add_bytes_sent(bytes_read);
         remaining -= (long)bytes_read;
     }
 
     if (ferror(file))
     {
         perror("Error while reading file");
+        increment_failed();
+    } else {
+        increment_successful();
     }
 
     fclose(file);
+    
+    // Record turnaround time (request complete)
+    gettimeofday(&end_time, NULL);
+    unsigned long long turnaround_time_us = 
+        (end_time.tv_sec - start_time.tv_sec) * 1000000ULL +
+        (end_time.tv_usec - start_time.tv_usec);
+    add_turnaround_time(turnaround_time_us);
 }

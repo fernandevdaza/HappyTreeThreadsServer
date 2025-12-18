@@ -173,7 +173,10 @@ int accept_connection(int server_fd)
 
     if ((new_socket = accept(server_fd, (struct sockaddr *)&client_addr, &addr_len)) < 0)
     {
-        perror("Failure in accept");
+        if (errno != EAGAIN && errno != EWOULDBLOCK)
+        {
+            perror("Failure in accept");
+        }
         return -1;
     }
 
